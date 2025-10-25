@@ -1,1 +1,25 @@
+### Linux code in the study "Development of a split-toxin CRISPR screening platform to systematically identify upstream regulators of human myoblast fusion"
+
+##RNA Seq
+
+#qc
+mkdir qc
+fastqc -t 16  -f fastq -o qc *.gz
+multiqc -d qc/ -o multiqcpartition=batch
+
+#Trim
+ls -1 *.gz | sed -e 's/@//' | xargs -n 2 | \
+    while read {i,j};do fastp -i ${i} -I ${j} -o ${i%.sra*}_clean.1.fq.gz -O ${i%.sra*}_clean.2.fq.gz \
+    -w 104 -q 20 -u 30 -n 10 -h ${i%.sra*}.html;done;
+
+#Build genome index
+hisat2-build hg38.fa genome
+
+#Alignment
+for ((i=1;i<=8;i++));
+do
+hisat2 -p 16 --dta -x genome -1 ${i}_R1_001.fastq.gz_clean.1.fq.gz -2 ${i}_R1_001.fastq.gz_clean.2.fq.gz | samtools view -bSh - > ${i}.bam
+samtools sort ${i}.bam -o ${i}.sorted.bam
+samtools index ${i}.sorted.bam
+done
 

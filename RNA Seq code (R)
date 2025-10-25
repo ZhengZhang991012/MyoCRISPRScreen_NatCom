@@ -1,2 +1,115 @@
 ### R code in the study "Development of a split-toxin CRISPR screening platform to systematically identify upstream regulators of human myoblast fusion"
+library (DESeq2)
+
+countData <- read.csv("rawcounts.csv", row.names = 1)
+
+metadata <- data.frame(
+  sample = colnames(countData),
+  group = c("gfp", "gfp", "ko", "ko"),
+  repeats = c("gmgfp1", "gmgfp2", "gmko1", "gmko2")
+)
+
+dds <- DESeqDataSetFromMatrix(countData, colData = metadata, design = ~ group)
+##if recieve NA warnings
+#countData <- countData[complete.cases(countData), ]
+
+dds <- DESeq(dds)
+results <- results(dds)
+alpha <- 0.05
+log2FC_threshold <- 1
+DE_genes <- subset(results, padj < alpha & abs(log2FoldChange) > log2FC_threshold)
+DE_genes$GeneID <- row.names(DE_genes)
+head(DE_genes)
+write.csv(DE_genes, file = "DE_genes.csv", row.names = FALSE)
+library(data.table)
+DE_genes <- fread("DE_genes.csv", header = TRUE)
+
+##Map to the emsembl and add gene Symbol
+library(biomaRt)
+library(dplyr)
+ensembl <- useEnsembl(biomart = "ensembl", dataset = "hsapiens_gene_ensembl")
+gene_info <- getBM(attributes = c("ensembl_gene_id", "external_gene_name"), mart = ensembl)
+DE_genes_with_symbols <- left_join(DE_genes, gene_info, by = c("GeneID" = "ensembl_gene_id"))
+
+##move Genename to the first column
+DE_genes_with_symbols <- DE_genes_with_symbols %>%
+  relocate(external_gene_name, GeneID, .before = everything())
+write.csv(DE_genes_with_symbols, file = "DE_genes_with_symbols.csv", row.names = FALSE)
+
+##GO analysis
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(org.Mm.eg.db)
+
+upregulated_threshold <- 1
+downregulated_threshold <- -1
+upregulated_genes <- DE_genes_with_symbols[DE_genes_with_symbols$log2FoldChange > upregulated_threshold, ]
+upgene_list <- upregulated_genes$external_gene_name
+downregulated_genes <- DE_genes_with_symbols[DE_genes_with_symbols$log2FoldChange < downregulated_threshold, ]
+downgene_list <- downregulated_genes$external_gene_name
+
+upenrichment_result <- enrichGO(
+  gene = upgene_list,
+  OrgDb = org.Hs.eg.db,
+  keyType = "SYMBOL",
+  ont = "BP",
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05
+)
+
+downenrichment_result <- enrichGO(
+  gene = downgene_list,
+  OrgDb = org.Hs.eg.db,
+  keyType = "SYMBOL",
+  ont = "BP",
+  pAdjustMethod = "BH",
+  qvalueCutoff = 0.05
+)
+
+library(ggplot2)
+barplot(upenrichment_result, showCategory = 20)
+barplot(downenrichment_result, showCategory = 20)
+
+
+##KEGG analysis
+#convert gene SYMBOL to kegg id
+#up
+upkegg_gene_ids <- mapIds(org.Hs.eg.db,
+                        keys = upgene_list,
+                        column = "ENTREZID",
+                        keytype = "SYMBOL")
+#down
+downkegg_gene_ids <- mapIds(org.Hs.eg.db,
+                        keys = downgene_list,
+                        column = "ENTREZID",
+                        keytype = "SYMBOL")
+#enrich
+upkegg_enrichment <- enrichKEGG(
+  gene = upkegg_gene_ids,
+  organism = "hsa",
+  keyType = "kegg",
+  qvalueCutoff = 0.05
+)
+downkegg_enrichment <- enrichKEGG(
+  gene = downkegg_gene_ids,
+  organism = "hsa",
+  keyType = "kegg",
+  qvalueCutoff = 0.05
+)
+
+dotplot(upkegg_enrichment, showCategory = 20)
+dotplot(downkegg_enrichment, showCategory = 20)
+
+##PCA
+rld <- rlog(dds)
+pcaData <- plotPCA(rld, intgroup=c("group", "sample"), returnData=T)
+percentVar <- round(100*attr(pcaData, "percentVar"))
+pca <- ggplot(pcaData, aes(PC1, PC2, color=group)) +
+	geom_point(size=3) +
+	ggtitle("DESeq2 PCA") +
+	xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+	ylab(paste0("PC2: ", percentVar[2], "% variance"))
+pca
+
+
 

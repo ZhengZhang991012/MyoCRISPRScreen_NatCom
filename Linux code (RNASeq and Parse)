@@ -1,6 +1,6 @@
 ### Linux code in the study "Development of a split-toxin CRISPR screening platform to systematically identify upstream regulators of human myoblast fusion"
 
-##RNA Seq
+##RNA Seq code
 
 #qc
 mkdir qc
@@ -25,3 +25,5 @@ done
 
 #FeatureCounts
 featureCounts -p -T 16 -t exon -g gene_id -a genome.gtf -o rawcounts.txt
+
+##Split-pool based single cell CRISPR screen code

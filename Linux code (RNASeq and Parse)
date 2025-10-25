@@ -26,4 +26,456 @@ done
 #FeatureCounts
 featureCounts -p -T 16 -t exon -g gene_id -a genome.gtf -o rawcounts.txt
 
-##Split-pool based single cell CRISPR screen code
+###Split-pool based single cell CRISPR screen code
+
+#Create the conda environment and generate index
+
+interact -c 4 --mem 16gb -p batch
+source ${HOME}/ParseBiosciences-Pipeline/sourceMeFirst
+split-pipe --help
+split-pipe --explain
+conda deactivate
+cd /newvolume/genomes
+# Download the genome and annotation files
+wget https://ftp.ensembl.org/pub/release-109/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+wget https://ftp.ensembl.org/pub/release-109/gtf/homo_sapiens/Homo_sapiens.GRCh38.109.gtf.gz
+wget https://ftp.ensembl.org/pub/release-109/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
+wget https://ftp.ensembl.org/pub/release-109/gtf/mus_musculus/Mus_musculus.GRCm39.109.gtf.gz
+
+#building index
+source ${HOME}/ParseBiosciences-Pipeline/sourceMeFirst
+# Run split-pipe to create genome reference
+#build human genome index
+split-pipe \
+--mode mkref \
+--genome_name hg38 \
+--fasta /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz \
+--genes /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/Homo_sapiens.GRCh38.109.gtf.gz \
+--output_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38
+#build humanmouse genome index
+split-pipe \
+--mode mkref \
+--genome_name hg38 mm10 \
+--fasta /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz \
+        /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz \
+--genes /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/Homo_sapiens.GRCh38.109.gtf.gz \
+        /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/Mus_musculus.GRCm39.109.gtf.gz \
+--output_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10
+
+conda deactivate
+
+##Split fastq files
+
+# Set script and directory paths
+SCRIPTPATH="/scratch/zz55221/Seq0129/newvolume/fastq_sep_groups.py"
+FQ_DIR="/scratch/zz55221/Seq0129/newvolume/analysis/fq/"
+FQ_ORI_DIR="/scratch/zz55221/Seq0129/newvolume/expdata/202401/"
+# Run the Python script
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}9_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}9_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}10_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}10_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+#
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}11_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}11_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+#
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}12_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}12_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+#
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}13_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}13_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+#
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}14_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}14_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+#
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}15_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}15_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+#
+python $SCRIPTPATH \
+    --kit_score_skip \
+    --kit WT_mega \
+    --fq1 ${FQ_ORI_DIR}16_R1_001.fastq.gz \
+    --fq2 ${FQ_ORI_DIR}16_R2_001.fastq.gz \
+    --opath ${FQ_DIR} \
+    --group human-mouse A1-A2 \
+    --group human A3-D12
+#
+conda deactivate
+
+###Run humanmouse mix samples
+#Start the sublibrary analysis
+
+source ${HOME}/ParseBiosciences-Pipeline/sourceMeFirst
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/2_group_human-mouse_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/2_group_human-mouse_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/humanmouse/S2 \
+    --sample 1 A1 \
+    --sample 2 A2 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/3_group_human-mouse_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/3_group_human-mouse_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/humanmouse/S3 \
+    --sample 1 A1 \
+    --sample 2 A2 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/4_group_human-mouse_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/4_group_human-mouse_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/humanmouse/S4 \
+    --sample 1 A1 \
+    --sample 2 A2 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/5_group_human-mouse_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/5_group_human-mouse_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/humanmouse/S5 \
+    --sample 1 A1 \
+    --sample 2 A2 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/6_group_human-mouse_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/6_group_human-mouse_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/humanmouse/S6 \
+    --sample 1 A1 \
+    --sample 2 A2 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/7_group_human-mouse_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/7_group_human-mouse_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/humanmouse/S7 \
+    --sample 1 A1 \
+    --sample 2 A2 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38_mm10 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/8_group_human-mouse_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human-mouse/8_group_human-mouse_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/humanmouse/S8 \
+    --sample 1 A1 \
+    --sample 2 A2 \
+# Deactivate conda environment
+conda deactivate
+
+###Run human samples
+source ${HOME}/ParseBiosciences-Pipeline/sourceMeFirst
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/1_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/1_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S1 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/2_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/2_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S2 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/3_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/3_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S3 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/4_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/4_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S4 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/5_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/5_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S5 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/6_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/6_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S6 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/7_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/7_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S7 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+#
+split-pipe \
+    --mode all \
+    --chemistry v2 \
+    --kit_score_skip \
+    --kit WT \
+    --genome_dir /home/zz55221/ParseBiosciences-Pipeline/newvolume/genomes/hg38 \
+    --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/8_group_human_R1.fastq.gz \
+    --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/8_group_human_R2.fastq.gz \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S8 \
+    --sample 3 A3 \
+    --sample 4 A4 \
+    --sample 5 A5-B1 \
+    --sample 6 B2-C4 \
+    --sample 7 C5-D12 \
+
+conda deactivate
+
+###Run human CRISPR samples
+
+source ${HOME}/ParseBiosciences-Pipeline/sourceMeFirst
+#please set the guide RNA prefix and suffix longer than the read1
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S1 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S1 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/9_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/9_group_human_R2.fastq.gz \
+#
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S2 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S2 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/10_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/10_group_human_R2.fastq.gz \
+#
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S3 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S3 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/11_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/11_group_human_R2.fastq.gz \
+#
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S4 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S4 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/12_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/12_group_human_R2.fastq.gz \
+#
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S5 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S5 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/13_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/13_group_human_R2.fastq.gz \
+#
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S6 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S6 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/14_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/14_group_human_R2.fastq.gz \
+#
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S7 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S7 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/15_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/15_group_human_R2.fastq.gz \
+#
+split-pipe \
+   --mode all \
+   --chemistry v2 \
+   --crispr \
+   --crsp_guides /home/zz55221/ParseBiosciences-Pipeline/newvolume/guidesnew2.csv \
+   --parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S8 \
+   --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S8 \
+   --fq1 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/16_group_human_R1.fastq.gz \
+   --fq2 /scratch/zz55221/Seq0129/newvolume/expdata/202401/human/16_group_human_R2.fastq.gz \
+
+conda deactivate
+
+#Combine transcriptome data
+source ${HOME}/ParseBiosciences-Pipeline/sourceMeFirst
+
+split-pipe \
+    --mode comb \
+    --sublibraries /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S1 \
+                   /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S2 \
+                   /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S3 \
+                   /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S4 \
+                   /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S5 \
+                   /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S6 \
+                   /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S7 \
+                   /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/S8 \
+    --output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/comb
+
+conda deactivate
+
+#Combine CRISPR data
+source ${HOME}/ParseBiosciences-Pipeline/sourceMeFirst
+
+split-pipe \
+--mode comb \
+--parent_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/WT/comb \
+--output_dir /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/comb \
+--sublibraries /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S1 \
+               /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S2 \
+               /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S3 \
+               /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S4 \
+               /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S5 \
+               /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S6 \
+               /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S7 \
+               /scratch/zz55221/Seq0129/newvolume/analysis/202401/human/CRISPR/S8
+
+conda deactivate

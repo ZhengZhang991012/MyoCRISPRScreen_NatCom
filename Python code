@@ -1,2 +1,370 @@
 ###Python code for downstream analysis of split-pool based single cell CRISPR screen
 
+import numpy as np
+import pandas as pd
+import scanpy as sc
+import scipy
+import os
+import scipy.io as sio
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib.patches as patches
+import scipy.sparse
+from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.spatial.distance import pdist
+
+adata = sc.read_mtx("count_matrix.mtx")
+gene_data = pd.read_csv("all_genes.csv")
+cell_meta = pd.read_csv("cell_metadata.csv")
+
+gene_data = gene_data[gene_data.gene_name.notnull()]
+notNa = gene_data.index
+notNa = notNa.to_list()
+
+adata = adata[:,notNa]
+adata.var = gene_data
+adata.var.set_index('gene_name', inplace=True)
+adata.var.index.name = None
+adata.var_names_make_unique()
+
+adata.obs = cell_meta
+adata.obs.set_index('bc_wells', inplace=True)
+adata.obs.index.name = None
+adata.obs_names_make_unique()
+
+sc.pp.filter_cells(adata, min_genes=300)
+sc.pp.filter_genes(adata, min_cells=5)
+#Filter by transcript number
+cell_meta_2000 = pd.read_csv('cell_metadata_2000_new.csv')
+barcodes_to_keep = cell_meta_2000['bc_wells'].tolist()
+adata = adata[adata.obs_names.isin(barcodes_to_keep)].copy()
+print(adata.shape)
+
+adata.var['mt'] = adata.var_names.str.startswith('MT-')
+sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], percent_top=None, log1p=False, inplace=True)
+sc.pl.violin(adata, ['n_genes_by_counts'], jitter=0.4, show=True)
+sc.pl.violin(adata, ['total_counts'], jitter=0.4, show=True)
+sc.pl.violin(adata, ['pct_counts_mt'], jitter=0.4, show=True)
+
+# Filter the data
+adata = adata[adata.obs.n_genes_by_counts < 10000,:]
+adata = adata[adata.obs.total_counts < 60000,:]
+adata = adata[adata.obs.pct_counts_mt < 40,:]
+adata.shape
+print(adata.obs)
+
+sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts', save='_gene_vs_transcript_counts')
+
+#add other sample info
+sample_info = pd.read_csv('cell_metadata_2000_new.csv')
+sample_info.set_index('bc_wells', inplace=True)
+adata.obs['sample'] = sample_info.loc[adata.obs_names, 'sample_2']
+guide_infect_info = pd.read_csv('cell_metadata_2000_new.csv')
+guide_infect_info.set_index('bc_wells', inplace=True)
+adata.obs['guide_infect'] = guide_infect_info.loc[adata.obs_names, 'guide_infect']
+AKAcluster = pd.read_csv('cell_metadata_2000_new.csv')
+AKAcluster.set_index('bc_wells', inplace=True)
+adata.obs['AKAcluster'] = AKAcluster.loc[adata.obs_names, 'AKAcluster']
+sig_group = pd.read_csv('cell_metadata_2000_new.csv')
+sig_group.set_index('bc_wells', inplace=True)
+adata.obs['sig_group'] = sig_group.loc[adata.obs_names, 'sig_group']
+sig_group2 = pd.read_csv('cell_metadata_2000_new.csv')
+sig_group2.set_index('bc_wells', inplace=True)
+adata.obs['sig_group2'] = sig_group2.loc[adata.obs_names, 'sig_group2']
+AKAcluster2 = pd.read_csv('cell_metadata_2000_new.csv')
+AKAcluster2.set_index('bc_wells', inplace=True)
+adata.obs['AKAcluster2'] = AKAcluster2.loc[adata.obs_names, 'AKAcluster2']
+guide3 = pd.read_csv('cell_metadata_2000_new.csv')
+guide3.set_index('bc_wells', inplace=True)
+adata.obs['guide3'] = guide3.loc[adata.obs_names, 'guide3']
+guide4 = pd.read_csv('cell_metadata_2000_new.csv')
+guide4.set_index('bc_wells', inplace=True)
+adata.obs['guide4'] = guide4.loc[adata.obs_names, 'guide4']
+guide_type = pd.read_csv('cell_metadata_2000_new.csv')
+guide_type.set_index('bc_wells', inplace=True)
+adata.obs['guide_type'] = guide_type.loc[adata.obs_names, 'guide_type']
+human_disease = pd.read_csv('cell_metadata_2000_new.csv')
+human_disease.set_index('bc_wells', inplace=True)
+adata.obs['human_disease'] = human_disease.loc[adata.obs_names, 'human_disease']
+
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+sc.pp.highly_variable_genes(adata, min_mean=0.015, max_mean=3, min_disp=0.5)
+sc.pl.highly_variable_genes(adata)
+
+sc.tl.pca(adata, svd_solver='arpack')
+sc.pl.pca_variance_ratio(adata, n_pcs=50)
+sc.pp.neighbors(adata, n_neighbors=15, n_pcs=30)
+sc.tl.umap(adata, min_dist=0.1, spread=2)
+sc.tl.leiden(adata, resolution=0.6)
+palette1 = [
+    '#e85155',
+    '#ff999c',
+    '#ffca3a',
+    '#8ac926',
+    '#2f6043',
+    '#1982c4',
+    '#2D4776',
+    '#6a4c93',
+    '#C9ADA7',
+    '#724E46'
+]
+sc.set_figure_params(figsize=(10, 10))
+sc.pl.umap(adata, color=['leiden'], show=False, title='UMAP colored by leiden Clusters', palette=palette1, size=5)
+
+palette2 = [
+    '#e85155',
+    '#2D4776'
+]
+sc.pl.umap(adata, color='sample', show=False, title='UMAP colored by samples', palette=palette2, size=5)
+
+palette3 = [
+    '#CED4DA',
+    '#2f6043',
+    '#f50008'
+]
+sc.pl.umap(adata, color='guide_infect', show=False, title='UMAP colored by guide_infect', palette=palette3, size=5)
+
+cell_counts = adata.obs['guide_infect'].value_counts()
+print(cell_counts)
+
+##Contour Density Plot
+clusters = adata.obs['guide3'].unique()
+
+umap_x_total = adata.obsm['X_umap'][:, 0]
+umap_y_total = adata.obsm['X_umap'][:, 1]
+
+for cluster in clusters:
+    subset = adata[adata.obs['guide3'] == cluster]
+    umap_x_subset = subset.obsm['X_umap'][:, 0]
+    umap_y_subset = subset.obsm['X_umap'][:, 1]
+    plt.figure(figsize=(10, 8))
+    plt.scatter(umap_x_total, umap_y_total, color="#F5F3F4", alpha=0.8, s=1)    
+    sns.kdeplot(x=umap_x_subset, y=umap_y_subset, levels=20, cmap="viridis", alpha=0.7, linewidths=1.5, label=f'Cluster {cluster}')
+    plt.title(f'Contour Density Plot of Cluster {cluster} in UMAP Space')
+    plt.xlabel('UMAP 1')
+    plt.ylabel('UMAP 2')
+    plt.legend()
+    sanitized_cluster_name = cluster.replace("/", "_").replace(" ", "_")
+    plt.clf()
+
+cluster_to_population = {
+    '0': 'DM_mix_differentiated',
+    '1': 'DM_mix_differentiated',
+    '4': 'DM_mix_differentiated',
+    '2': 'DM_mix_non_differentiated',
+    '5': 'DM_mix_non_differentiated',
+    '6': 'DM_mix_differentiated',
+    '7': 'DM_mix_non_differentiated',
+    '8': 'DM_mix_non_differentiated',
+    '9': 'DM_mix_non_differentiated',
+    '3': 'GM'
+}
+palette3 = [
+    '#e85155',
+    
+    '#8ac926',
+    '#2D4776'
+]
+adata.obs['cell_type'] = adata.obs['leiden'].map(lambda x: cluster_to_population[str(x)]).astype('category')
+sc.pl.umap(adata, color='cell_type', show=False, title='UMAP colored by cell_types', palette=palette3, size=5)
+
+adata_1_guide = adata[adata.obs['guide_infect'] == '1_guide'].copy()
+adata_0_guide = adata[adata.obs['guide_infect'] == '0_guide'].copy()
+
+adata_sig = adata_0_guide[adata_0_guide.obs['cell_type'].isin(['DM_mix_differentiated', 'GM'])].copy()
+sc.tl.rank_genes_groups(adata_sig, groupby='cell_type', groups=['DM_mix_differentiated'], reference='GM', method='wilcoxon')
+
+results_df = pd.DataFrame({
+    'names': adata_sig.uns['rank_genes_groups']['names']['DM_mix_differentiated'],
+    'scores': adata_sig.uns['rank_genes_groups']['scores']['DM_mix_differentiated'],
+    'logfoldchanges': adata_sig.uns['rank_genes_groups']['logfoldchanges']['DM_mix_differentiated'],
+    'pvals': adata_sig.uns['rank_genes_groups']['pvals']['DM_mix_differentiated'],
+    'pvals_adj': adata_sig.uns['rank_genes_groups']['pvals_adj']['DM_mix_differentiated'],
+})
+
+##Muscle signature gene selection
+results_df['abs_scores'] = results_df['scores'].abs()
+results_df_sorted = results_df.sort_values(by='abs_scores', ascending=False)
+num_genes_to_select = int(len(results_df_sorted) * 0.01)
+signature_genes_df = results_df_sorted.head(num_genes_to_select)
+print(f"Number of signature genes selected: {num_genes_to_select}")
+signature_genes_df.head()
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+ax1.hist(results_df_sorted['abs_scores'], bins=30, color='#DADAD8', edgecolor='#939391')
+ax1.set_ylim(3000, 40000)
+ax1.spines['bottom'].set_visible(False)
+ax1.xaxis.tick_top()
+ax1.tick_params(labeltop=False)
+ax2.hist(results_df_sorted['abs_scores'], bins=30, color='#DADAD8', edgecolor='#939391')
+ax2.set_ylim(0, 1000) 
+ax2.spines['top'].set_visible(False)
+ax2.xaxis.tick_bottom()
+d = .015  # Size of the break mark
+kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
+ax1.plot((-d, +d), (-d, +d), **kwargs)
+ax1.plot((1 - d, 1 + d), (-d, +d), **kwargs)
+kwargs.update(transform=ax2.transAxes)
+ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)
+ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)
+plt.xlabel('Absolute DE score')
+ax1.set_ylabel('Number of Genes')
+ax2.set_ylabel('Number of Genes')
+plt.suptitle('Distribution of DE genes')
+plt.show()
+
+#Calculate mean expression of the muscle signature genes
+negative_score_genes = signature_genes_df[signature_genes_df['scores'] < 0]['names']
+positive_score_genes = signature_genes_df[signature_genes_df['scores'] > 0]['names']
+mean_expression = {'Gene': [], 'cell_type': [], 'Mean_Expression': []}
+# Calculate mean expression for genes with scores < 0 in cluster DM_mix_non_differentiated
+for gene in negative_score_genes:
+    if gene in adata.var_names:
+        expr_values = adata[adata.obs['cell_type'] == 'GM'].to_df()[gene]
+        mean_expression['Gene'].append(gene)
+        mean_expression['cell_type'].append('GM')
+        mean_expression['Mean_Expression'].append(expr_values.mean())
+# Calculate mean expression for genes with scores > 0 in cluster DM_mix_differentiated
+for gene in positive_score_genes:
+    if gene in adata.var_names:
+        expr_values = adata[adata.obs['cell_type'] == 'DM_mix_differentiated'].to_df()[gene]
+        mean_expression['Gene'].append(gene)
+        mean_expression['cell_type'].append('DM_mix_differentiated')
+        mean_expression['Mean_Expression'].append(expr_values.mean())
+mean_expression_df = pd.DataFrame(mean_expression)
+
+genes_of_interest = [...]
+adata_sub = adata_1_guide[:, genes_of_interest]
+if scipy.sparse.issparse(adata_sub.X):
+    data_dense = adata_sub.X.toarray()
+else:
+    data_dense = adata_sub.X
+df_genes = pd.DataFrame(data_dense, columns=genes_of_interest, index=adata_sub.obs.index)
+df_genes['AKAcluster2'] = adata_sub.obs['AKAcluster2']
+group_means = df_genes.groupby('AKAcluster2').mean()
+group_z_scores = (group_means - group_means.mean()) / group_means.std(ddof=0)
+coefficients_df = pd.read_csv('mean_expression_signature_genes.csv')
+coefficients_mapping = coefficients_df.set_index('Gene')['Coefficient'].to_dict()
+muscle_diff_scores = np.zeros(adata_sub.shape[0])
+for gene_name, coeff in coefficients_mapping.items():
+    if gene_name in adata_sub.var_names:
+        idx = adata_sub.var_names.get_loc(gene_name)
+        gene_expression = adata_sub.X[:, idx].toarray().flatten() if scipy.sparse.issparse(adata_sub.X) else adata_sub.X[:, idx]
+        muscle_diff_scores += gene_expression * coeff
+adata_sub.obs['muscle_diff_score'] = muscle_diff_scores
+median_scores = adata_sub.obs.groupby('AKAcluster2')['muscle_diff_score'].median().reset_index()
+median_scores_sorted = median_scores.sort_values(by='muscle_diff_score')
+sorted_clusters = median_scores_sorted['AKAcluster2'].tolist()
+n_clusters = len(sorted_clusters)
+colors = plt.cm.bwr(np.linspace(0, 1, n_clusters))
+plt.figure(figsize=(60, 6))
+sns.violinplot(x='AKAcluster2', y='muscle_diff_score', data=adata_sub.obs, order=sorted_clusters, inner=None, palette=colors)
+sns.pointplot(x='AKAcluster2', y='muscle_diff_score', data=adata_sub.obs, join=False, estimator=np.median, color='black', ci=None, markers='o', order=sorted_clusters)
+plt.xticks(rotation=90)
+plt.xlabel('AKAcluster2')
+plt.ylabel('Muscle Differentiation Score')
+plt.title('Ranked Violin Plot of Muscle Differentiation Score by AKAcluster2')
+plt.show()
+
+AKAcluster_counts = adata_sub.obs['AKAcluster2'].value_counts()
+cluster_positions = {cluster: i for i, cluster in enumerate(desired_order)}
+for cluster in desired_order:
+    x_position = cluster_positions[cluster]
+    circle_size = np.log(AKAcluster_counts[cluster]) * 100  # Adjust scaling factor here
+    plt.scatter(x_position, 0, s=circle_size, alpha=0.2, color='blue', label=f'{cluster} (n={AKAcluster_counts[cluster]})')
+    plt.text(x_position, 0, f'{AKAcluster_counts[cluster]}', color='black', ha='center', va='center', rotation=90)
+
+plt.xticks(range(len(desired_order)), desired_order, rotation=90)
+plt.yticks([])
+plt.xlabel('AKAcluster2')
+plt.title('Log-Scaled Sample Size of Each AKAcluster Group')
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title="Cluster: Sample Size")]
+plt.gca().axes.get_yaxis().set_visible(False)
+plt.savefig('sample_size.png', dpi=300)
+plt.tight_layout()
+plt.show()
+
+sc.tl.rank_genes_groups(adata, groupby='leiden', method='wilcoxon')
+result = adata.uns['rank_genes_groups']
+groups = result['names'].dtype.names 
+all_results = []
+for group in groups:
+    df = pd.DataFrame({
+        'Gene': result['names'][group],
+        'Fold Change': result['logfoldchanges'][group],
+        'p-value': result['pvals'][group],
+        'FDR': result['pvals_adj'][group]
+    })
+    df['Cluster'] = group
+    all_results.append(df)
+marker_genes_df = pd.concat(all_results, ignore_index=True)
+print(marker_genes_df)
+
+sc.pl.rank_genes_groups(adata, n_genes=5, sharey=False)
+
+result = adata.uns['rank_genes_groups']
+groups = result['names'].dtype.names
+filtered_marker_genes = {group: [] for group in groups}
+for group in groups:
+    gene_names = result['names'][group]
+    fdr_values = result['pvals_adj'][group]
+    filtered_genes = gene_names[fdr_values < 0.00001]
+    filtered_marker_genes[group].extend(filtered_genes)
+marker_genes_df = pd.DataFrame(dict([(k, pd.Series(v)) for k,v in filtered_marker_genes.items()]))
+
+marker_genes = {
+    'Cluster0': ['ADAMTS5', 'ANKRD44', 'DAPK1', 'FRY', 'GRAMD2B', 'HSPG2', 'IGF2', 'ITGA6', 'KCNH1', 'KCNQ5', 'LRRFIP1', 'NAV3', 'PALLD', 'PCDH7', 'PLEKHA6', 'PRKG1', 'ROBO1', 'SAMD5', 'SORBS2', 'SPTBN1', 'TMEM108', 'UTRN', 'VGLL3', 'ZBTB20'],
+    'Cluster1': ['ABI3BP', 'ACOT11', 'ADAMTSL5', 'ANK2', 'CASQ1', 'CHN2', 'COL22A1', 'CSRP3', 'KLHL31', 'LDB3', 'LMO7', 'LMOD2', 'MB', 'MDM4', 'MLIP', 'MYH7B', 'MYO18B', 'MYPN', 'NBEA', 'NEAT1', 'PDZRN3', 'PKHD1', 'PLCE1', 'PPP1R12B', 'RUNX1', 'SLC8A3', 'TRDN', 'ZBTB7C'],
+    'Cluster2': ['ACTA1', 'ACTC1', 'ACTN2', 'ARPP21', 'ATP1B4', 'BIN1', 'CACNA2D1', 'CADM2', 'CALM1', 'CASQ2', 'CKM', 'DCLK1', 'DES', 'DLG2', 'DMD', 'FILIP1', 'KLHL41', 'LDB3', 'LMOD3', 'MACF1', 'MEF2C', 'MT-RNR2', 'MYBPC1', 'MYBPH', 'MYH3', 'MYH7', 'MYH8', 'MYL11', 'MYL6B', 'MYOM1', 'MYOM3', 'NEB', 'NES', 'OBSCN', 'PRUNE2', 'RASSF4', 'RBFOX1', 'REEP1', 'RYR1', 'SETD7', 'SNTB1', 'SORBS1', 'STAC3', 'TNNI1', 'TNNT1', 'TNNT2', 'TNNT3', 'TPM2', 'TTN', 'TTN-AS1'],
+    'Cluster3': ['ABLIM3', 'CAVIN4', 'CCDC141', 'DST', 'ENSG00000145075', 'FLNC', 'H19', 'HDAC9', 'HIPK3', 'HRC', 'INPP4B', 'ITGA7', 'KIF1B', 'LINC02511', 'MAP1A', 'MAP4', 'MRAS', 'MT-RNR1', 'NCAM1', 'NEXN', 'PDLIM3', 'RAPGEF1', 'RTN4', 'SYNPO2', 'TNS1'],
+    'Cluster4': ['ABL2', 'AFF4', 'ARID4B', 'ARID5B', 'ASH1L', 'ATF3', 'BRD2', 'CDK4', 'CHAMP1', 'CHD2', 'CITED2', 'CREBRF', 'CYLD', 'ENSG00000285976', 'FNIP1', 'GOLGA4', 'HIF1A-AS3', 'HNRNPC', 'HNRNPH3', 'IFRD1', 'IL6ST', 'IRS2', 'JAK2', 'JMY', 'KIAA1217', 'KLF10', 'KLF6', 'METTL2A', 'MTUS1', 'NCL', 'NR1D1', 'NR1D2', 'OGA', 'PER1', 'PLK2', 'PPM1D', 'PPP1R15A', 'RIOK3', 'RND3', 'RSRC2', 'RYBP', 'SNAPC1', 'TERT', 'TXNIP', 'USP36', 'XPO1', 'YTHDC1'],
+    'Cluster5': ['ADAMTS12', 'ALPK2', 'APBB2', 'CALD1', 'CCDC80', 'CCN1', 'CCND2', 'COL5A1', 'COL5A2', 'DDAH1', 'DLG1', 'EXT1', 'FAT1', 'FBN1', 'FLNA', 'FRMD4A', 'FSTL1', 'GLS', 'IGFBP3', 'ITGBL1', 'LOXL2', 'LTBP2', 'NRG1', 'NTM', 'PARD3B', 'PEAK1', 'SCD', 'SEPTIN11', 'SHISA9', 'SPARC', 'SULF1', 'THBS1', 'VCAN'],
+    'Cluster6': ['ANTXR1', 'ARHGAP22', 'ARMC9', 'BICC1', 'BNC2', 'CEMIP', 'CLMP', 'COL1A1', 'COL1A2', 'COL3A1', 'COL6A1', 'COL6A2', 'COL6A3', 'CTSB', 'DPP4', 'DPYD', 'FAP', 'FN1', 'FTH1', 'GPNMB', 'GREM1', 'HIPK2', 'ITGA11', 'ITGB5', 'KCND2', 'LINC-PINT', 'LRP1', 'MDM2', 'MLPH', 'MMP14', 'MMP2', 'MYH9', 'NAV1', 'NOTCH2', 'OSBPL3', 'PAPPA', 'PKNOX2', 'PLXDC2', 'PSAP', 'PSD3', 'PTCHD4', 'PURPL', 'PXDN', 'RBMS1', 'SEMA3C', 'SPOCK1', 'SQSTM1', 'SUGCT', 'TGFBI', 'TNS3'],
+    'Cluster7': ['ABHD2', 'ADAMTS6', 'CD44', 'COL4A1', 'COL4A2', 'DLC1', 'DOCK10', 'FRMD6', 'ITGB1', 'MICAL2', 'MIR222HG', 'NEK10', 'PRKCA', 'SERPINE2', 'SLC4A7', 'STC2', 'TRIO'],
+    'Cluster8': ['ACTB', 'ACTG1', 'ADAM9', 'ADAMTSL1', 'AHNAK', 'ANXA2', 'ARHGAP18', 'ARHGEF28', 'ASAP2', 'ATP2B1', 'ATRNL1', 'BCAR3', 'CALM2', 'CAV1', 'CAVIN2', 'CCBE1', 'CCND1', 'CLIC4', 'CRIM1', 'DAAM2', 'DCBLD2', 'DNAJB4', 'EEF1A1', 'ENO1', 'ENSG00000228560', 'ENSG00000258989', 'FKBP5', 'GAPDH', 'HMGA2', 'HSP90B1', 'HTRA1', 'LDHA', 'MAP3K5', 'MIR100HG', 'MME', 'MT2A', 'NAV2', 'NPTX2', 'NT5E', 'PLCB4', 'PLXNA2', 'SERPINE1', 'SLC8A1', 'TGFBR2', 'TMSB10', 'TPM4', 'TSPAN5', 'VIM'],
+    'Cluster9': ['ANLN', 'ARHGAP11A', 'ARL6IP1', 'ASPM', 'ATAD2', 'BRIP1', 'BUB1', 'CBX5', 'CCDC18', 'CENPE', 'CENPF', 'CEP128', 'CIT', 'CKAP2', 'DIAPH3', 'ECT2', 'ENSG00000284906', 'EZH2', 'HELLS', 'KIF11', 'KIF20B', 'KNL1', 'MELK', 'MIR924HG', 'MKI67', 'NCAPG', 'NCAPG2', 'NSD2', 'NUCKS1', 'PBX3', 'PLAU', 'POLQ', 'PRC1', 'PRIM2', 'SMC4', 'TACC3', 'TMPO', 'TOP2A', 'TPX2', 'TUBA1B', 'TUBB']
+}
+color_list = [(0, "#5ED50F"), (0.5, "white"), (1, "#CA3B7F")]
+cmap_name = "custom50_50"
+custom_cmap3 = LinearSegmentedColormap.from_list(cmap_name, color_list, N=100) 
+
+def zscore(x):
+    return (x - x.mean()) / x.std()
+
+all_genes = list(set([gene for genes in marker_genes.values() for gene in genes]))
+all_genes = [gene for gene in all_genes if gene in adata.var_names]
+
+df = pd.DataFrame(index=all_genes, columns=range(10)) 
+for cluster in range(10):
+    cluster_cells = adata.obs['leiden'] == str(cluster)
+    cluster_expression = adata[cluster_cells, all_genes].X
+    if scipy.sparse.issparse(cluster_expression):
+        cluster_expression = cluster_expression.toarray()
+    df.loc[:, cluster] = np.mean(cluster_expression, axis=0)
+
+df_zscore = df.apply(zscore, axis=1)
+genes_order, cluster_boundaries = [], [0]
+for cluster in range(10):
+    cluster_genes = marker_genes[f'Cluster{cluster}']
+    cluster_genes = [gene for gene in cluster_genes if gene in df_zscore.index]
+    genes_order.extend(cluster_genes)
+    cluster_boundaries.append(len(genes_order))
+df_zscore = df_zscore.loc[genes_order]
+
+linkage_matrix = linkage(pdist(df_zscore.T, metric='euclidean'), method='ward')
+dendro = dendrogram(linkage_matrix, no_plot=True)
+df_zscore = df_zscore.iloc[:, dendro['leaves']]  # Reorder columns based on clustering
+
+fig, ax = plt.subplots(figsize=(12, 20))
+sns.heatmap(df_zscore, cmap=custom_cmap3, vmin=-2, vmax=2, center=0, cbar_kws={'label': 'Z-score'}, ax=ax, yticklabels=False)
+for i in range(len(cluster_boundaries) - 1):
+    rect = patches.Rectangle((0, cluster_boundaries[i]), 10, cluster_boundaries[i+1] - cluster_boundaries[i], fill=False, edgecolor='gray', lw=2)
+    ax.add_patch(rect)
+plt.title('Marker Genes Across Clusters (Z-score, Columns Clustered)')
+plt.xlabel('Clusters')
+plt.ylabel('Genes (grouped by cluster)')
+plt.tight_layout()
+plt.show()
+
+

@@ -23,3 +23,5 @@ samtools sort ${i}.bam -o ${i}.sorted.bam
 samtools index ${i}.sorted.bam
 done
 
+#FeatureCounts
+featureCounts -p -T 16 -t exon -g gene_id -a genome.gtf -o rawcounts.txt
